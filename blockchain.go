@@ -1,18 +1,116 @@
 package gophchain
 
+import (
+	"github.com/boltdb/bolt"
+)
+
+const dbFile = "db.txt"
+const blocksBucket = "blocksBucket"
+
 // Blockchain structure
 type Blockchain struct {
-	Blocks []*Block
+	tip []byte
+	db  *bolt.DB
 }
 
 // NewBlockchain Returns a initial blockchain structure
-func NewBlockchain() *Blockchain {
-	return &Blockchain{[]*Block{NewGenesisBlock()}}
+func NewBlockchain() (*Blockchain, error) {
+	var tip []byte
+	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		if b == nil {
+			genesis := NewGenesisBlock()
+			b, err := tx.CreateBucket([]byte(blocksBucket))
+			genesisSerialized, err := genesis.Serialize()
+			if err != nil {
+				return err
+			}
+
+			err = b.Put(genesis.Hash, genesisSerialized)
+			if err != nil {
+				return err
+			}
+
+			err = b.Put([]byte("1"), genesis.Hash)
+			tip = genesis.Hash
+		} else {
+			tip = b.Get([]byte("1"))
+		}
+
+		return nil
+	})
+
+	return &Blockchain{tip, db}, nil
 }
 
 // AddBlock Adds new block to the blockchain
-func (bc *Blockchain) AddBlock(data string) {
-	prevBlock := bc.Blocks[len(bc.Blocks)-1]
-	newBlock := NewBlock(data, prevBlock.Hash)
-	bc.Blocks = append(bc.Blocks, newBlock)
+func (bc *Blockchain) AddBlock(data string) error {
+	var lastHash []byte
+	if err := bc.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		lastHash = b.Get([]byte("1"))
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	newBlock := NewBlock(data, lastHash)
+	err := bc.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		serializedBlock, err := newBlock.Serialize()
+		if err != nil {
+			return err
+		}
+
+		err = b.Put(newBlock.Hash, serializedBlock)
+		if err != nil {
+			return err
+		}
+
+		err = b.Put([]byte("1"), newBlock.Hash)
+		if err != nil {
+			return err
+		}
+
+		bc.tip = newBlock.Hash
+		return nil
+	})
+
+	return err
+}
+
+// BlockchainIterator for BoltDB
+type BlockchainIterator struct {
+	currentHash []byte
+	db          *bolt.DB
+}
+
+func (bc *Blockchain) Iterator() *BlockchainIterator {
+	return &BlockchainIterator{bc.tip, bc.db}
+}
+
+func (i *BlockchainIterator) Next() (*Block, error) {
+	var block *Block
+	if err := i.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(blocksBucket))
+		encodedBlock := b.Get(i.currentHash)
+		var err error
+		block, err = Deserialize(encodedBlock)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	i.currentHash = block.PrevBlockHash
+	return block, nil
 }
