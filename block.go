@@ -1,6 +1,8 @@
 package gophchain
 
 import (
+	"bytes"
+	"encoding/gob"
 	"time"
 )
 
@@ -34,4 +36,26 @@ func NewBlock(data string, prevBlockHash []byte) *Block {
 	block.Hash = hash[:]
 
 	return block
+}
+
+func (b *Block) Serialize() ([]byte, error) {
+	var result bytes.Buffer
+	encoder := gob.NewEncoder(&result)
+	err := encoder.Encode(b)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Bytes(), nil
+}
+
+func Deserialize(d []byte) (*Block, error) {
+	var block Block
+	decoder := gob.NewDecoder(bytes.NewBuffer(d))
+	err := decoder.Decode(&block)
+	if err != nil {
+		return nil, err
+	}
+
+	return &block, nil
 }
