@@ -9,8 +9,8 @@ import (
 	"strconv"
 )
 
-const targetBits = 24
-const maxNonce = math.MinInt64
+const targetBits = 16
+const maxNonce = math.MaxInt64
 
 // ProofOfWork Structure
 type ProofOfWork struct {
@@ -26,12 +26,12 @@ func NewProofOfWork(b *Block) *ProofOfWork {
 }
 
 // Run It's the core function of our PoW algorithm
-func (pow *ProofOfWork) Run() (int, []byte) {
+func (pow *ProofOfWork) Run() (int64, []byte) {
 	var hashInt big.Int
 	var hash [32]byte
-	nonce := 0
+	var nonce int64
 
-	fmt.Println("Mining the block containing \"%s\"\n", pow.block.Data)
+	fmt.Printf("Mining the block containing \"%s\"\n", pow.block.Data)
 	for nonce < maxNonce {
 		data := pow.prepareData(nonce)
 		hash = sha256.Sum256(data)
@@ -40,12 +40,12 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 		hashInt.SetBytes(hash[:])
 		if hashInt.Cmp(pow.target) == -1 {
 			break
+		} else {
+			nonce++
 		}
-
-		nonce++
 	}
-
 	fmt.Print("\n\n")
+
 	return nonce, hash[:]
 }
 
@@ -60,14 +60,14 @@ func (pow *ProofOfWork) Validate() bool {
 	return hashInt.Cmp(pow.target) == -1
 }
 
-func (pow *ProofOfWork) prepareData(nonce int) []byte {
+func (pow *ProofOfWork) prepareData(nonce int64) []byte {
 	data := bytes.Join(
 		[][]byte{
 			pow.block.Data,
 			pow.block.PrevBlockHash,
 			intToHex(pow.block.Timestamp),
 			intToHex(int64(targetBits)),
-			intToHex(int64(nonce)),
+			intToHex(nonce),
 		},
 		[]byte{},
 	)

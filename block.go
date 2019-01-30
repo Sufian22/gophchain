@@ -10,7 +10,7 @@ type Block struct {
 	Data          []byte
 	PrevBlockHash []byte
 	Hash          []byte
-	Nonce         int
+	Nonce         int64
 }
 
 // NewGenesisBlock Returns the initial blockchain Block
