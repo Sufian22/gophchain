@@ -4,13 +4,13 @@ import (
 	"github.com/boltdb/bolt"
 )
 
-const dbFile = "db.txt"
+const dbFile = "gophchain.db"
 const blocksBucket = "blocksBucket"
 
 // Blockchain structure
 type Blockchain struct {
 	tip []byte
-	db  *bolt.DB
+	Db  *bolt.DB
 }
 
 // NewBlockchain Returns a initial blockchain structure
@@ -51,7 +51,7 @@ func NewBlockchain() (*Blockchain, error) {
 // AddBlock Adds new block to the blockchain
 func (bc *Blockchain) AddBlock(data string) error {
 	var lastHash []byte
-	if err := bc.db.View(func(tx *bolt.Tx) error {
+	if err := bc.Db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		lastHash = b.Get([]byte("1"))
 
@@ -61,7 +61,7 @@ func (bc *Blockchain) AddBlock(data string) error {
 	}
 
 	newBlock := NewBlock(data, lastHash)
-	err := bc.db.Update(func(tx *bolt.Tx) error {
+	err := bc.Db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		serializedBlock, err := newBlock.Serialize()
 		if err != nil {
@@ -92,7 +92,7 @@ type BlockchainIterator struct {
 }
 
 func (bc *Blockchain) Iterator() *BlockchainIterator {
-	return &BlockchainIterator{bc.tip, bc.db}
+	return &BlockchainIterator{bc.tip, bc.Db}
 }
 
 func (i *BlockchainIterator) Next() (*Block, error) {
