@@ -2,6 +2,7 @@ package gophchain
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/gob"
 	"time"
 )
@@ -9,22 +10,22 @@ import (
 // Block structure
 type Block struct {
 	Timestamp     int64
-	Data          []byte
+	Transactions  []*Transaction
 	PrevBlockHash []byte
 	Hash          []byte
 	Nonce         int64
 }
 
 // NewGenesisBlock Returns the initial blockchain Block
-func NewGenesisBlock() *Block {
-	return NewBlock("Genesis Block", []byte{})
+func NewGenesisBlock(coinbase *Transaction) *Block {
+	return NewBlock([]*Transaction{coinbase}, []byte{})
 }
 
 // NewBlock Creates a new Block with the proof of work needed
-func NewBlock(data string, prevBlockHash []byte) *Block {
+func NewBlock(transactions []*Transaction, prevBlockHash []byte) *Block {
 	block := &Block{
 		Timestamp:     time.Now().Unix(),
-		Data:          []byte(data),
+		Transactions:  transactions,
 		PrevBlockHash: prevBlockHash,
 		Hash:          []byte{},
 		Nonce:         0,
@@ -38,11 +39,22 @@ func NewBlock(data string, prevBlockHash []byte) *Block {
 	return block
 }
 
+func (b *Block) HashTransactions() []byte {
+	var txHashes [][]byte
+	var txHash [32]byte
+
+	for _, tx := range b.Transactions {
+		txHashes = append(txHashes, tx.id)
+	}
+
+	txHash = sha256.Sum256(bytes.Join(txHashes, []byte{}))
+	return txHash[:]
+}
+
 func (b *Block) Serialize() ([]byte, error) {
 	var result bytes.Buffer
 	encoder := gob.NewEncoder(&result)
-	err := encoder.Encode(b)
-	if err != nil {
+	if err := encoder.Encode(b); err != nil {
 		return nil, err
 	}
 
@@ -52,8 +64,7 @@ func (b *Block) Serialize() ([]byte, error) {
 func Deserialize(d []byte) (*Block, error) {
 	var block Block
 	decoder := gob.NewDecoder(bytes.NewBuffer(d))
-	err := decoder.Decode(&block)
-	if err != nil {
+	if err := decoder.Decode(&block); err != nil {
 		return nil, err
 	}
 
